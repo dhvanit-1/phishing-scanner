@@ -1,14 +1,20 @@
 "use client"
 
+import { useState } from "react"
 import { motion } from "framer-motion"
-import { Monitor, Lock, Minus, Square, X } from "lucide-react"
+import { Monitor, Lock, Minus, Square, X, ImageOff } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface DockerScreenshotCardProps {
   url: string
+  /** URL to an actual screenshot image served by the backend */
+  previewUrl?: string
 }
 
-export function DockerScreenshotCard({ url }: DockerScreenshotCardProps) {
+export function DockerScreenshotCard({ url, previewUrl }: DockerScreenshotCardProps) {
+  const [imgError, setImgError] = useState(false)
+  const hasImage = !!previewUrl && !imgError
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -17,13 +23,13 @@ export function DockerScreenshotCard({ url }: DockerScreenshotCardProps) {
       whileHover={{ y: -2 }}
       className="h-full"
     >
-      <Card className="border-border/60 bg-card/80 backdrop-blur-sm h-full transition-shadow hover:shadow-lg hover:shadow-primary/5">
+      <Card className="h-full border-border/60 bg-card/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-primary/5">
         <CardHeader>
           <CardTitle className="flex items-center gap-2.5 text-card-foreground">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
               <Monitor className="h-4 w-4 text-primary" />
             </div>
-            Live Sandbox Preview
+            Live Website Preview
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -40,9 +46,7 @@ export function DockerScreenshotCard({ url }: DockerScreenshotCardProps) {
               <div className="flex flex-1 items-center justify-center">
                 <div className="flex max-w-sm flex-1 items-center gap-2 rounded-md border border-border/40 bg-background/50 px-3 py-1">
                   <Lock className="h-3 w-3 text-success" />
-                  <span className="truncate text-xs font-mono text-muted-foreground">
-                    {url}
-                  </span>
+                  <span className="truncate font-mono text-xs text-muted-foreground">{url}</span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 text-muted-foreground/40">
@@ -52,53 +56,65 @@ export function DockerScreenshotCard({ url }: DockerScreenshotCardProps) {
               </div>
             </div>
 
-            {/* Simulated page content */}
-            <div className="relative min-h-[340px] p-6">
-              {/* Dot grid background */}
-              <div className="absolute inset-0 bg-[radial-gradient(rgba(120,220,240,0.06)_1px,transparent_1px)] bg-[size:16px_16px]" />
-
-              <div className="relative flex flex-col gap-5">
-                {/* Nav bar skeleton */}
-                <div className="flex items-center justify-between">
-                  <div className="h-4 w-24 rounded bg-muted-foreground/10" />
-                  <div className="flex gap-3">
-                    <div className="h-3 w-12 rounded bg-muted-foreground/8" />
-                    <div className="h-3 w-12 rounded bg-muted-foreground/8" />
-                    <div className="h-3 w-12 rounded bg-muted-foreground/8" />
-                  </div>
+            {/* ── Content area ── */}
+            <div className="relative min-h-[340px]">
+              {hasImage ? (
+                /* Real backend screenshot */
+                <img
+                  src={previewUrl}
+                  alt={`Live preview of ${url}`}
+                  crossOrigin="anonymous"
+                  onError={() => setImgError(true)}
+                  className="h-auto w-full object-cover"
+                />
+              ) : previewUrl && imgError ? (
+                /* Image failed to load */
+                <div className="flex min-h-[340px] flex-col items-center justify-center gap-3 text-muted-foreground/50">
+                  <ImageOff className="h-10 w-10" />
+                  <p className="text-sm">Preview image could not be loaded</p>
                 </div>
-
-                {/* Hero section skeleton */}
-                <div className="flex flex-col items-center gap-3 py-6">
-                  <div className="h-5 w-52 rounded bg-muted-foreground/12" />
-                  <div className="h-3 w-72 rounded bg-muted-foreground/8" />
-                  <div className="h-3 w-60 rounded bg-muted-foreground/6" />
-                  <div className="mt-2 h-9 w-28 rounded-lg bg-primary/15" />
-                </div>
-
-                {/* Card grid skeleton */}
-                <div className="grid grid-cols-3 gap-3">
-                  {[...Array(3)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-col gap-2 rounded-lg border border-border/20 bg-muted-foreground/4 p-3"
-                    >
-                      <div className="h-3 w-12 rounded bg-muted-foreground/10" />
-                      <div className="h-2 w-full rounded bg-muted-foreground/6" />
-                      <div className="h-2 w-4/5 rounded bg-muted-foreground/5" />
+              ) : (
+                /* Skeleton fallback when no previewUrl is provided */
+                <div className="relative p-6">
+                  <div className="absolute inset-0 bg-[radial-gradient(rgba(120,220,240,0.06)_1px,transparent_1px)] bg-[size:16px_16px]" />
+                  <div className="relative flex flex-col gap-5">
+                    {/* Nav skeleton */}
+                    <div className="flex items-center justify-between">
+                      <div className="h-4 w-24 rounded bg-muted-foreground/10" />
+                      <div className="flex gap-3">
+                        <div className="h-3 w-12 rounded bg-muted-foreground/8" />
+                        <div className="h-3 w-12 rounded bg-muted-foreground/8" />
+                        <div className="h-3 w-12 rounded bg-muted-foreground/8" />
+                      </div>
                     </div>
-                  ))}
-                </div>
-
-                {/* Footer skeleton */}
-                <div className="flex items-center justify-between pt-3 border-t border-border/10">
-                  <div className="h-2.5 w-28 rounded bg-muted-foreground/6" />
-                  <div className="flex gap-2">
-                    <div className="h-2.5 w-8 rounded bg-muted-foreground/5" />
-                    <div className="h-2.5 w-8 rounded bg-muted-foreground/5" />
+                    {/* Hero skeleton */}
+                    <div className="flex flex-col items-center gap-3 py-6">
+                      <div className="h-5 w-52 rounded bg-muted-foreground/12" />
+                      <div className="h-3 w-72 rounded bg-muted-foreground/8" />
+                      <div className="h-3 w-60 rounded bg-muted-foreground/6" />
+                      <div className="mt-2 h-9 w-28 rounded-lg bg-primary/15" />
+                    </div>
+                    {/* Card grid skeleton */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="flex flex-col gap-2 rounded-lg border border-border/20 bg-muted-foreground/4 p-3">
+                          <div className="h-3 w-12 rounded bg-muted-foreground/10" />
+                          <div className="h-2 w-full rounded bg-muted-foreground/6" />
+                          <div className="h-2 w-4/5 rounded bg-muted-foreground/5" />
+                        </div>
+                      ))}
+                    </div>
+                    {/* Footer skeleton */}
+                    <div className="flex items-center justify-between border-t border-border/10 pt-3">
+                      <div className="h-2.5 w-28 rounded bg-muted-foreground/6" />
+                      <div className="flex gap-2">
+                        <div className="h-2.5 w-8 rounded bg-muted-foreground/5" />
+                        <div className="h-2.5 w-8 rounded bg-muted-foreground/5" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Docker badge */}
               <motion.div
@@ -108,9 +124,7 @@ export function DockerScreenshotCard({ url }: DockerScreenshotCardProps) {
                 className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-lg border border-border/50 bg-card/90 px-2.5 py-1.5 backdrop-blur-sm"
               >
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-                <span className="text-[10px] font-mono text-muted-foreground">
-                  docker:sandbox-v3
-                </span>
+                <span className="font-mono text-[10px] text-muted-foreground">docker:sandbox-v3</span>
               </motion.div>
             </div>
           </div>

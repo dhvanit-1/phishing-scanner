@@ -4,23 +4,63 @@ import { motion } from "framer-motion"
 import { Globe, MapPin } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-interface NetworkData {
-  ip: string
-  location: string
-  created: string
-  registrar: string
-  ssl: string
+/* ────────────────────────────────────────────────────
+   Fallback: resolve locationName to approximate coords
+   ──────────────────────────────────────────────────── */
+
+const LOCATION_COORDS: Record<string, { x: number; y: number }> = {
+  "san francisco": { x: 13, y: 35 },
+  "new york":      { x: 20, y: 32 },
+  "london":        { x: 46, y: 25 },
+  "paris":         { x: 48, y: 27 },
+  "berlin":        { x: 50, y: 25 },
+  "moscow":        { x: 57, y: 24 },
+  "tokyo":         { x: 82, y: 32 },
+  "sydney":        { x: 85, y: 72 },
+  "singapore":     { x: 76, y: 52 },
+  "mumbai":        { x: 68, y: 42 },
+  "lagos":         { x: 48, y: 50 },
+  "dubai":         { x: 62, y: 38 },
+  "toronto":       { x: 19, y: 30 },
+  "são paulo":     { x: 28, y: 65 },
+  "beijing":       { x: 78, y: 30 },
 }
 
-interface NetworkIntelligenceCardProps {
-  data: NetworkData
+function resolveMapPin(
+  locationName: string,
+  latitude?: number,
+  longitude?: number,
+): { x: string; y: string } {
+  // If we have real coords, convert them to a % position on the simple map SVG
+  if (latitude !== undefined && longitude !== undefined) {
+    const x = ((longitude + 180) / 360) * 100
+    const y = ((90 - latitude) / 180) * 100
+    return { x: `${x}%`, y: `${y}%` }
+  }
+
+  // Fall back to locationName lookup
+  const key = locationName.toLowerCase().replace(/,.*$/, "").trim()
+  const match = Object.entries(LOCATION_COORDS).find(([k]) => key.includes(k))
+  if (match) return { x: `${match[1].x}%`, y: `${match[1].y}%` }
+
+  // Default centre
+  return { x: "50%", y: "40%" }
 }
 
-function WorldMapSvg() {
+/* ────────────────────────────────────────────────────
+   Minimal world‑map SVG
+   ──────────────────────────────────────────────────── */
+
+function WorldMapSvg({
+  pinX,
+  pinY,
+}: {
+  pinX: string
+  pinY: string
+}) {
   return (
     <div className="relative mb-4 overflow-hidden rounded-xl border border-border/30 bg-secondary/30 p-4">
-      <svg viewBox="0 0 1000 500" className="w-full h-auto opacity-30" fill="none">
-        {/* Simplified world map paths */}
+      <svg viewBox="0 0 1000 500" className="h-auto w-full opacity-30" fill="none">
         <path d="M165 130 L180 125 L195 130 L210 125 L230 140 L245 135 L260 150 L240 165 L225 160 L210 170 L195 165 L180 175 L165 160 L150 155 L155 140 Z" fill="currentColor" className="text-primary/40" />
         <path d="M470 90 L510 85 L550 95 L580 90 L610 100 L640 95 L660 110 L680 105 L700 115 L690 135 L670 140 L650 130 L620 140 L590 135 L560 145 L530 135 L500 140 L480 130 L460 120 L450 105 Z" fill="currentColor" className="text-primary/40" />
         <path d="M500 150 L530 145 L560 155 L580 150 L600 165 L590 180 L570 185 L550 175 L530 180 L510 170 L490 165 Z" fill="currentColor" className="text-primary/40" />
@@ -30,10 +70,11 @@ function WorldMapSvg() {
         <path d="M210 190 L240 185 L270 200 L290 210 L280 240 L260 270 L240 290 L220 280 L200 260 L190 230 L195 210 Z" fill="currentColor" className="text-primary/40" />
         <path d="M150 210 L175 205 L190 220 L185 250 L170 270 L150 265 L140 240 L135 225 Z" fill="currentColor" className="text-primary/40" />
       </svg>
+
       {/* Location pin */}
       <motion.div
         className="absolute"
-        style={{ left: "22%", top: "32%" }}
+        style={{ left: pinX, top: pinY }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.8 }}
@@ -44,7 +85,6 @@ function WorldMapSvg() {
         >
           <MapPin className="h-5 w-5 text-primary drop-shadow-[0_0_6px_rgba(120,220,240,0.5)]" fill="currentColor" />
         </motion.div>
-        {/* Ripple rings */}
         <motion.div
           className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40"
           animate={{ scale: [1, 2.5], opacity: [0.6, 0] }}
@@ -60,13 +100,37 @@ function WorldMapSvg() {
   )
 }
 
-export function NetworkIntelligenceCard({ data }: NetworkIntelligenceCardProps) {
+/* ────────────────────────────────────────────────────
+   Network Intelligence Card
+   ──────────────────────────────────────────────────── */
+
+interface NetworkIntelligenceCardProps {
+  ipAddress: string
+  locationName: string
+  latitude?: number
+  longitude?: number
+  ispAsn: string
+  registrar: string
+  createdDate: string
+}
+
+export function NetworkIntelligenceCard({
+  ipAddress,
+  locationName,
+  latitude,
+  longitude,
+  ispAsn,
+  registrar,
+  createdDate,
+}: NetworkIntelligenceCardProps) {
+  const pin = resolveMapPin(locationName, latitude, longitude)
+
   const fields = [
-    { label: "IP Address", value: data.ip },
-    { label: "Location", value: data.location },
-    { label: "Created", value: data.created },
-    { label: "Registrar", value: data.registrar },
-    { label: "SSL Certificate", value: data.ssl },
+    { label: "IP Address", value: ipAddress },
+    { label: "Location", value: locationName },
+    { label: "ISP / ASN", value: ispAsn },
+    { label: "Registrar", value: registrar },
+    { label: "Created Date", value: createdDate },
   ]
 
   return (
@@ -86,7 +150,7 @@ export function NetworkIntelligenceCard({ data }: NetworkIntelligenceCardProps) 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <WorldMapSvg />
+          <WorldMapSvg pinX={pin.x} pinY={pin.y} />
           <div className="flex flex-col gap-2">
             {fields.map((field, i) => (
               <motion.div
@@ -99,7 +163,7 @@ export function NetworkIntelligenceCard({ data }: NetworkIntelligenceCardProps) 
                 <span className="text-xs uppercase tracking-wider text-muted-foreground/70">
                   {field.label}
                 </span>
-                <span className="text-sm font-medium font-mono text-card-foreground">
+                <span className="font-mono text-sm font-medium text-card-foreground">
                   {field.value}
                 </span>
               </motion.div>

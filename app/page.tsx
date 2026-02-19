@@ -14,22 +14,58 @@ import { DockerScreenshotCard } from "@/components/docker-screenshot-card"
 import { DnsTable } from "@/components/dns-table"
 
 /* ────────────────────────────────────────────────────
-   Three distinct result profiles
+   Shared ScanResult type — mirrors the backend shape
    ──────────────────────────────────────────────────── */
 
-const SCENARIOS = {
+export interface ScanResult {
+  verdict: VerdictType
+  confidence: number
+  /** Free-form AI reasoning — a single string or a list of strings from the backend */
+  aiReasoning: string | string[]
+  /** Optional structured checks (label / status / detail) */
+  checks?: { label: string; status: "pass" | "warn" | "fail"; detail: string }[]
+  liveWebsitePreviewUrl: string
+  ipAddress: string
+  locationName: string
+  /** Optional lat/lng from the backend; when absent the map falls back to locationName */
+  latitude?: number
+  longitude?: number
+  ispAsn: string
+  registrar: string
+  createdDate: string
+  dnsRecords: { type: string; value: string }[]
+}
+
+/* ────────────────────────────────────────────────────
+   Three demo result profiles
+   ──────────────────────────────────────────────────── */
+
+const SCENARIOS: Record<"safe" | "suspicious" | "dangerous", Omit<ScanResult, "confidence">> = {
   safe: {
-    verdict: "safe" as VerdictType,
-    confidenceRange: [92, 99],
-    reasoning: [
-      { label: "SSL/TLS Verification", status: "pass" as const, detail: "Valid certificate issued by Let's Encrypt. Certificate chain verified. HSTS enabled." },
-      { label: "Content Similarity Check", status: "pass" as const, detail: "Page content does not mimic known phishing templates. No credential harvesting forms detected." },
-      { label: "URL Structure Analysis", status: "pass" as const, detail: "Domain matches known legitimate pattern. No suspicious subdomains or typosquatting detected." },
-      { label: "Domain Reputation", status: "pass" as const, detail: "Domain has a clean history across 47 threat intelligence databases. Age: 6+ years." },
-      { label: "JavaScript Behavior", status: "pass" as const, detail: "All scripts verified as standard analytics and UI libraries. No obfuscation or malicious payloads." },
+    verdict: "safe",
+    aiReasoning: [
+      "The domain has a valid SSL/TLS certificate issued by Let's Encrypt with a full chain of trust. HSTS is enforced.",
+      "Page content does not match any known phishing templates in the database. No credential-harvesting forms detected.",
+      "URL structure is clean with no typosquatting, suspicious sub-domains, or Punycode abuse.",
+      "Domain is 6+ years old with a clean reputation across 47 threat intelligence feeds.",
+      "All JavaScript is non-obfuscated — standard analytics and UI libraries only. No malicious payloads found.",
     ],
-    network: { ip: "104.21.32.1", location: "San Francisco, US", created: "2019-03-15", registrar: "Cloudflare, Inc.", ssl: "Let's Encrypt (Valid)" },
-    dns: [
+    checks: [
+      { label: "SSL/TLS Verification", status: "pass", detail: "Valid certificate issued by Let's Encrypt. Certificate chain verified. HSTS enabled." },
+      { label: "Content Similarity Check", status: "pass", detail: "Page content does not mimic known phishing templates. No credential harvesting forms detected." },
+      { label: "URL Structure Analysis", status: "pass", detail: "Domain matches known legitimate pattern. No suspicious subdomains or typosquatting detected." },
+      { label: "Domain Reputation", status: "pass", detail: "Domain has a clean history across 47 threat intelligence databases. Age: 6+ years." },
+      { label: "JavaScript Behavior", status: "pass", detail: "All scripts verified as standard analytics and UI libraries. No obfuscation or malicious payloads." },
+    ],
+    liveWebsitePreviewUrl: "",
+    ipAddress: "104.21.32.1",
+    locationName: "San Francisco, US",
+    latitude: 37.78,
+    longitude: -122.42,
+    ispAsn: "AS13335 — Cloudflare, Inc.",
+    registrar: "Cloudflare, Inc.",
+    createdDate: "2019-03-15",
+    dnsRecords: [
       { type: "A", value: "104.21.32.1" },
       { type: "AAAA", value: "2606:4700:3030::6815:2001" },
       { type: "CNAME", value: "cdn.example.com" },
@@ -39,18 +75,32 @@ const SCENARIOS = {
       { type: "SOA", value: "ns1.cloudflare.com admin.example.com 2024010101" },
     ],
   },
+
   suspicious: {
-    verdict: "suspicious" as VerdictType,
-    confidenceRange: [55, 74],
-    reasoning: [
-      { label: "SSL/TLS Verification", status: "warn" as const, detail: "Self-signed certificate detected. Certificate chain incomplete. HSTS not configured." },
-      { label: "Content Similarity Check", status: "warn" as const, detail: "Page layout has 72% similarity to known PayPal phishing template. Login form detected." },
-      { label: "URL Structure Analysis", status: "warn" as const, detail: "Domain uses uncommon TLD (.xyz). Subdomain mimics well-known brand: 'secure-paypal.login.xyz'." },
-      { label: "Domain Reputation", status: "pass" as const, detail: "Domain is 4 months old. Found in 2 low-confidence threat feeds. Not yet confirmed malicious." },
-      { label: "JavaScript Behavior", status: "fail" as const, detail: "Obfuscated keylogger script detected. Sends form data to external endpoint via Base64 POST." },
+    verdict: "suspicious",
+    aiReasoning: [
+      "A self-signed SSL certificate was detected. The certificate chain is incomplete and HSTS is not configured, making the connection vulnerable to downgrade attacks.",
+      "The page layout has a 72 % visual similarity to a known PayPal credential-harvesting template. A login form with email and password fields was found.",
+      "The domain uses an uncommon TLD (.xyz) and the subdomain structure mimics a well-known brand: 'secure-paypal.login.xyz'.",
+      "Domain was registered only 4 months ago. It appeared in 2 low-confidence threat intelligence feeds but has not been confirmed malicious yet.",
+      "An obfuscated keylogger script was detected — it captures form input and sends data to an external endpoint via Base64-encoded POST requests.",
     ],
-    network: { ip: "185.234.72.11", location: "Moscow, RU", created: "2025-11-02", registrar: "Namecheap, Inc.", ssl: "Self-Signed (Invalid)" },
-    dns: [
+    checks: [
+      { label: "SSL/TLS Verification", status: "warn", detail: "Self-signed certificate detected. Certificate chain incomplete. HSTS not configured." },
+      { label: "Content Similarity Check", status: "warn", detail: "Page layout has 72% similarity to known PayPal phishing template. Login form detected." },
+      { label: "URL Structure Analysis", status: "warn", detail: "Domain uses uncommon TLD (.xyz). Subdomain mimics well-known brand: 'secure-paypal.login.xyz'." },
+      { label: "Domain Reputation", status: "pass", detail: "Domain is 4 months old. Found in 2 low-confidence threat feeds. Not yet confirmed malicious." },
+      { label: "JavaScript Behavior", status: "fail", detail: "Obfuscated keylogger script detected. Sends form data to external endpoint via Base64 POST." },
+    ],
+    liveWebsitePreviewUrl: "",
+    ipAddress: "185.234.72.11",
+    locationName: "Moscow, RU",
+    latitude: 55.75,
+    longitude: 37.62,
+    ispAsn: "AS44493 — Chelyabinsk-Signal LLC",
+    registrar: "Namecheap, Inc.",
+    createdDate: "2025-11-02",
+    dnsRecords: [
       { type: "A", value: "185.234.72.11" },
       { type: "CNAME", value: "proxy-redirect.xyz" },
       { type: "MX", value: "5 mail.suspicious-host.ru" },
@@ -58,18 +108,32 @@ const SCENARIOS = {
       { type: "NS", value: "ns1.shady-dns.xyz" },
     ],
   },
+
   dangerous: {
-    verdict: "dangerous" as VerdictType,
-    confidenceRange: [88, 99],
-    reasoning: [
-      { label: "SSL/TLS Verification", status: "fail" as const, detail: "No SSL certificate found. Connection is unencrypted HTTP. All data transmitted in plaintext." },
-      { label: "Content Similarity Check", status: "fail" as const, detail: "98% match with known Bank of America credential harvesting page. Fake 2FA form included." },
-      { label: "URL Structure Analysis", status: "fail" as const, detail: "Typosquatting detected: 'bankofarnerlca.com'. Punycode encoding used to spoof characters." },
-      { label: "Domain Reputation", status: "fail" as const, detail: "Domain registered 2 days ago. Flagged in 31 of 47 threat intelligence databases as malicious." },
-      { label: "JavaScript Behavior", status: "fail" as const, detail: "Cryptominer, keylogger, and session hijacker detected. Drive-by download payload hosted." },
+    verdict: "dangerous",
+    aiReasoning:
+      "CRITICAL — This URL is almost certainly a phishing page. No SSL certificate is present so all data is transmitted in plaintext. " +
+      "The page content is a 98 % match with a known Bank of America credential-harvesting template and includes a fake 2FA form. " +
+      "Typosquatting was detected: the domain 'bankofarnerlca.com' uses Punycode-encoded characters to mimic the legitimate brand. " +
+      "The domain was registered only 2 days ago and is already flagged in 31 of 47 threat intelligence databases. " +
+      "JavaScript analysis found a cryptominer, a keylogger, and a session-hijacker. A drive-by download payload is also hosted on the server. " +
+      "DO NOT interact with this page under any circumstances.",
+    checks: [
+      { label: "SSL/TLS Verification", status: "fail", detail: "No SSL certificate found. Connection is unencrypted HTTP. All data transmitted in plaintext." },
+      { label: "Content Similarity Check", status: "fail", detail: "98% match with known Bank of America credential harvesting page. Fake 2FA form included." },
+      { label: "URL Structure Analysis", status: "fail", detail: "Typosquatting detected: 'bankofarnerlca.com'. Punycode encoding used to spoof characters." },
+      { label: "Domain Reputation", status: "fail", detail: "Domain registered 2 days ago. Flagged in 31 of 47 threat intelligence databases as malicious." },
+      { label: "JavaScript Behavior", status: "fail", detail: "Cryptominer, keylogger, and session hijacker detected. Drive-by download payload hosted." },
     ],
-    network: { ip: "45.95.168.222", location: "Lagos, NG", created: "2026-02-17", registrar: "Tucows Domains", ssl: "None (HTTP Only)" },
-    dns: [
+    liveWebsitePreviewUrl: "",
+    ipAddress: "45.95.168.222",
+    locationName: "Lagos, NG",
+    latitude: 6.52,
+    longitude: 3.38,
+    ispAsn: "AS37560 — Cynextra Ng Ltd",
+    registrar: "Tucows Domains",
+    createdDate: "2026-02-17",
+    dnsRecords: [
       { type: "A", value: "45.95.168.222" },
       { type: "MX", value: "0 localhost" },
       { type: "TXT", value: "(none)" },
@@ -80,41 +144,31 @@ const SCENARIOS = {
 }
 
 /* ────────────────────────────────────────────────────
-   Determine which scenario a URL gets
+   Classify a URL into one of the three scenarios
    ──────────────────────────────────────────────────── */
 
-function pickScenario(url: string) {
+function pickScenario(url: string): Omit<ScanResult, "confidence"> {
   const lower = url.toLowerCase()
 
-  // Dangerous keywords
   const dangerousPatterns = [
     "phish", "malware", "hack", "exploit", "trojan",
     "fake", "scam", "steal", "login-verify", "bankofarnerlca",
-    "free-iphone", "claim-prize", ".ru", ".xyz",
+    "free-iphone", "claim-prize",
   ]
-  if (dangerousPatterns.some((p) => lower.includes(p))) {
-    return SCENARIOS.dangerous
-  }
+  if (dangerousPatterns.some((p) => lower.includes(p))) return SCENARIOS.dangerous
 
-  // Suspicious keywords
   const suspiciousPatterns = [
     "suspicious", "warn", "test", "unknown", "verify",
-    "secure-", "auth-", "account-", "update-info",
+    "secure-", "auth-", "account-", "update-info", ".xyz", ".ru",
   ]
-  if (suspiciousPatterns.some((p) => lower.includes(p))) {
-    return SCENARIOS.suspicious
-  }
+  if (suspiciousPatterns.some((p) => lower.includes(p))) return SCENARIOS.suspicious
 
-  // Well-known safe domains
   const safeDomains = [
     "google.com", "github.com", "vercel.com", "nextjs.org",
     "apple.com", "microsoft.com", "amazon.com", "wikipedia.org",
   ]
-  if (safeDomains.some((d) => lower.includes(d))) {
-    return SCENARIOS.safe
-  }
+  if (safeDomains.some((d) => lower.includes(d))) return SCENARIOS.safe
 
-  // Random pick for everything else
   const rand = Math.random()
   if (rand < 0.5) return SCENARIOS.safe
   if (rand < 0.8) return SCENARIOS.suspicious
@@ -131,14 +185,6 @@ function randBetween(min: number, max: number) {
 
 type AppView = "entry" | "scanning" | "results"
 
-interface ScanResult {
-  verdict: VerdictType
-  confidence: number
-  reasoning: { label: string; status: "pass" | "warn" | "fail"; detail: string }[]
-  network: { ip: string; location: string; created: string; registrar: string; ssl: string }
-  dns: { type: string; value: string }[]
-}
-
 export default function PhishingScannerPage() {
   const [view, setView] = useState<AppView>("entry")
   const [analyzedUrl, setAnalyzedUrl] = useState("")
@@ -150,14 +196,15 @@ export default function PhishingScannerPage() {
 
     setTimeout(() => {
       const scenario = pickScenario(url)
-      const confidence = randBetween(scenario.confidenceRange[0], scenario.confidenceRange[1])
-      setResult({
-        verdict: scenario.verdict,
-        confidence,
-        reasoning: scenario.reasoning,
-        network: scenario.network,
-        dns: scenario.dns,
-      })
+      const confRange =
+        scenario.verdict === "safe"
+          ? [92, 99]
+          : scenario.verdict === "suspicious"
+            ? [55, 74]
+            : [88, 99]
+      const confidence = randBetween(confRange[0], confRange[1])
+
+      setResult({ ...scenario, confidence })
       setView("results")
     }, 2800)
   }, [])
@@ -167,6 +214,7 @@ export default function PhishingScannerPage() {
       <CyberBackground />
 
       <AnimatePresence mode="wait">
+        {/* ───── Entry / Scanning view ───── */}
         {(view === "entry" || view === "scanning") && (
           <motion.main
             key="entry"
@@ -180,11 +228,7 @@ export default function PhishingScannerPage() {
 
             <div className="relative z-10 flex w-full max-w-3xl flex-col items-center gap-8">
               <ScannerHeader />
-              <UrlInput
-                onAnalyze={runScan}
-                isAnalyzing={view === "scanning"}
-                variant="hero"
-              />
+              <UrlInput onAnalyze={runScan} isAnalyzing={view === "scanning"} variant="hero" />
               <ScanStats />
             </div>
 
@@ -221,9 +265,7 @@ export default function PhishingScannerPage() {
                       />
                     </div>
                     <div className="flex flex-col items-center gap-1">
-                      <p className="text-sm font-medium text-foreground">
-                        Analyzing Target
-                      </p>
+                      <p className="text-sm font-medium text-foreground">Analyzing Target</p>
                       <p className="max-w-[240px] truncate font-mono text-xs text-muted-foreground">
                         {analyzedUrl}
                       </p>
@@ -242,6 +284,7 @@ export default function PhishingScannerPage() {
           </motion.main>
         )}
 
+        {/* ───── Results view ───── */}
         {view === "results" && result && (
           <motion.div
             key={`results-${result.verdict}`}
@@ -251,11 +294,7 @@ export default function PhishingScannerPage() {
             className="min-h-screen"
           >
             <ScannerHeader compact />
-            <UrlInput
-              onAnalyze={runScan}
-              isAnalyzing={false}
-              variant="compact"
-            />
+            <UrlInput onAnalyze={runScan} isAnalyzing={false} variant="compact" />
 
             <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
               <div className="flex flex-col gap-6">
@@ -263,15 +302,29 @@ export default function PhishingScannerPage() {
 
                 <div className="grid gap-6 lg:grid-cols-5">
                   <div className="flex flex-col gap-6 lg:col-span-2">
-                    <AiReasoningCard steps={result.reasoning} />
-                    <NetworkIntelligenceCard data={result.network} />
+                    <AiReasoningCard
+                      reasoning={result.aiReasoning}
+                      checks={result.checks}
+                    />
+                    <NetworkIntelligenceCard
+                      ipAddress={result.ipAddress}
+                      locationName={result.locationName}
+                      latitude={result.latitude}
+                      longitude={result.longitude}
+                      ispAsn={result.ispAsn}
+                      registrar={result.registrar}
+                      createdDate={result.createdDate}
+                    />
                   </div>
                   <div className="lg:col-span-3">
-                    <DockerScreenshotCard url={analyzedUrl} />
+                    <DockerScreenshotCard
+                      url={analyzedUrl}
+                      previewUrl={result.liveWebsitePreviewUrl}
+                    />
                   </div>
                 </div>
 
-                <DnsTable records={result.dns} />
+                <DnsTable records={result.dnsRecords} />
               </div>
             </div>
           </motion.div>
